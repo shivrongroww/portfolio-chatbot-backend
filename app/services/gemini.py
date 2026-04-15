@@ -1,56 +1,55 @@
 import google.generativeai as genai
 from app.core.config import get_settings
+from app.core.context import load_portfolio_context
 from app.models.chat import ChatMessage
 from typing import Generator
 
 settings = get_settings()
 
-SYSTEM_PROMPT = """You are a helpful portfolio assistant representing Shivang Rai, a \
-Product Designer with 2 years of experience. Your job is to answer questions about his \
-work, experience, projects, and background in a conversational, engaging, and honest way.
+BASE_SYSTEM_PROMPT = """You are a portfolio assistant representing Shivang Rai, a Product Designer \
+with 2 years of experience. Answer questions about his work, experience, projects, and background \
+in a conversational, engaging, and honest way.
 
-Use ONLY the context provided to answer questions. If the context doesn't contain \
-enough information to answer a question, say so honestly — don't make things up.
+Use ONLY the information in the portfolio context below to answer questions. If something isn't \
+covered, say so honestly — don't make things up. Speak in first person on behalf of Shivang.
 
-Keep answers concise but complete. When relevant, mention specific project names, \
-roles, or outcomes from the context. Speak in first person on behalf of Shivang.
+If someone asks something unrelated to the portfolio, politely redirect them.
 
-If someone asks something completely unrelated to the portfolio (e.g., general coding \
-help, weather, etc.), politely redirect them to ask about his work."""
+---
+
+PORTFOLIO CONTEXT:
+
+{context}"""
+
+
+def _build_system_prompt() -> str:
+    context = load_portfolio_context()
+    if not context:
+        return BASE_SYSTEM_PROMPT.replace("{context}", "No portfolio documents loaded yet.")
+    return BASE_SYSTEM_PROMPT.format(context=context)
 
 
 def _build_history(history: list[ChatMessage]) -> list[dict]:
-    """Convert message history to Gemini's expected format."""
-    gemini_history = []
-    for msg in history:
-        role = "user" if msg.role == "user" else "model"
-        gemini_history.append({"role": role, "parts": [msg.content]})
-    return gemini_history
+    return [
+        {"role": "user" if m.role == "user" else "model", "parts": [m.content]}
+        for m in history
+    ]
 
 
 def stream_chat(
     message: str,
     history: list[ChatMessage],
-    context: str,
 ) -> Generator[str, None, None]:
     """Yields streamed text chunks from Gemini."""
     genai.configure(api_key=settings.google_api_key)
 
     model = genai.GenerativeModel(
         model_name=settings.gemini_model,
-        system_instruction=SYSTEM_PROMPT,
+        system_instruction=_build_system_prompt(),
     )
 
     chat = model.start_chat(history=_build_history(history))
-
-    user_content = message
-    if context:
-        user_content = (
-            f"Relevant context from my portfolio:\n\n{context}\n\n"
-            f"---\n\nUser question: {message}"
-        )
-
-    response = chat.send_message(user_content, stream=True)
+    response = chat.send_message(message, stream=True)
 
     for chunk in response:
         if chunk.text:
