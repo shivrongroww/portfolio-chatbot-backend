@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     allowed_origins: str = "http://localhost:3000"
 
     # Models
-    gemini_model: str = "gemini-2.0-flash"
+    gemini_model: str = "gemini-2.5-flash"
 
     # Rate limiting (per IP)
     rate_limit_chat: str = "8/minute"

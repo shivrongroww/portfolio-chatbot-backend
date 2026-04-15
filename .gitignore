@@ -4,9 +4,6 @@ __pycache__/
 *.pyo
 .venv/
 venv/
-chroma_db/
-data/documents/*
-!data/documents/.gitkeep
 .DS_Store
 *.egg-info/
 dist/
